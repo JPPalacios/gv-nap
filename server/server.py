@@ -7,12 +7,15 @@ from threading import *
 import PySimpleGUI as w
 
 from tools.tools import *
+
 # run command if failure: >$: export PYTHONPATH=/path/to/parent:$PYTHONPATH
 
 def run_window():
     log("running GUI...")
 
     window = open_window("host")
+
+    tables_values = []
 
     while True:
         event, values = window.read()
@@ -21,9 +24,16 @@ def run_window():
         elif event == CONNECT_BUTTON_LABEL:
             hostname = values["hostname"]
             port     = values["port"]
+            username = values["username"]
             speed    = values["speed"]
 
             log(f'connecting to {hostname}:{port} set to {speed}...')
+            # window["output"].print(f'connecting to {hostname}:{port}...')
+
+            # table new connection information
+            tables_values.append([values["speed"], values["hostname"], values["port"]])
+            table = window.find_element("table")
+            table.update(values = tables_values, num_rows = len(tables_values))
 
         elif event == SEARCH_BUTTON_LABEL:
             keyword  = values["keyword"]
@@ -34,6 +44,9 @@ def run_window():
             command  = values["command"]
 
             log(f'command entered: {command}')
+
+            # log actions onto GUI
+            # window["output"].print(f'>> {command}:')
 
     window.close()
 

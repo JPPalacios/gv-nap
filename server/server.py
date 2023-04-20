@@ -10,6 +10,13 @@ from tools.tools import *
 
 # run command if failure: >$: export PYTHONPATH=/path/to/parent:$PYTHONPATH
 
+
+'''
+todo:
+- fix multiple enter button bindings
+- if
+'''
+
 def run_window():
     log("running GUI...")
 
@@ -27,13 +34,16 @@ def run_window():
             username = values["username"]
             speed    = values["speed"]
 
+            new_entry = [values["speed"], values["hostname"], values["port"]]
+
             log(f'connecting to {hostname}:{port} set to {speed}...')
             # window["output"].print(f'connecting to {hostname}:{port}...')
 
             # table new connection information
-            tables_values.append([values["speed"], values["hostname"], values["port"]])
-            table = window.find_element("table")
-            table.update(values = tables_values, num_rows = len(tables_values))
+            if new_entry not in tables_values:
+                tables_values.append(new_entry)
+                table = window.find_element("table")
+                table.update(values = tables_values, num_rows = len(tables_values))
 
         elif event == SEARCH_BUTTON_LABEL:
             keyword  = values["keyword"]

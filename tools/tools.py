@@ -48,7 +48,7 @@ def open_window(title : str) -> Window:
         [
             user_input("Hostname", key = "hostname"),
             user_input("Port", key = "port"),
-            button(CONNECT_BUTTON_LABEL)
+            button(CONNECT_BUTTON_LABEL, bind = True)
         ]
     )
 

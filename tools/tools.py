@@ -2,14 +2,34 @@
 from PySimpleGUI import Window
 import PySimpleGUI as w
 
+SEND_MESSAGE_END = '\r\n'
+READ_MESSAGE_END = '\r\n\r\n'
+
+'''
+--
+'''
+
 CONNECT_BUTTON_LABEL = "Connect"
 SEARCH_BUTTON_LABEL  = "Search"
 COMMAND_BUTTON_LABEL = "Go"
 
 WINDOW_SIZE = (600, 800)
 
+
+'''
+-- tool methods
+'''
+
 def log(message : str):
     print(f'[+] - {message}')
+
+
+def error(message : str):
+    print(f'[-] - {message}')
+
+'''
+-- window methods
+'''
 
 def text(label,  size = None, font = None, text_color = None):
     return [w.Text(label, text_color = text_color)]
@@ -39,7 +59,7 @@ def user_output(key, size = (600, 10)):
     return [w.Output(size = size, key = key)]
 
 '''
--- window methods
+-- top-level window method
 '''
 
 def open_window(title : str) -> Window:
@@ -71,8 +91,6 @@ def open_window(title : str) -> Window:
         ],
         size = (600, 250))
     ]
-
-    # table_row = add_table_row(["", "", ""])
 
     command_frame = [
         w.Frame("FTP",

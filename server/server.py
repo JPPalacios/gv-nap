@@ -1,78 +1,72 @@
 
 import os
 import sys
-import socket
-from threading import *
 
-import PySimpleGUI as w
+from threading import *
+from socket import *
 
 from tools.tools import *
 
-# run command if failure: >$: export PYTHONPATH=/path/to/parent:$PYTHONPATH
+class Server:
 
+    def __init__(self, host = '127.0.0.1', port = 3155, buffer = 1024):
+        self.host = host
+        self.port = port
+        self.buffer = buffer
+        self.control_socket = socket(AF_INET, SOCK_STREAM)
+        self.client_socket  = None
 
-'''
-todo:
-- fix multiple enter button bindings
-- if
-'''
+        self.client_address = None
+        self.data_socket    = None
 
-def run_window():
-    log("running GUI...")
+        self.cwd = os.getcwd()
+        self.launch()
 
-    window = open_window("host")
+    def launch(self):
+        self.control_socket.setsockopt(SOL_SOCKET, SO_REUSEADDR, 1)
+        self.control_socket.bind((self.host, self.port))
+        self.control_socket.listen(5)
+        log(f'server listening on {self.host}:{self.port}...')
+        while True:
+            self.client_socket, self.client_address = self.control_socket.accept()
+            log(f'connection established')
+            client_thread = Thread(target = self.handle_client)
+            client_thread.start()
 
-    tables_values = []
+    def handle_client(self):
+        log(f'handle_client thread running...')
 
-    while True:
-        event, values = window.read()
-        if event == w.WIN_CLOSED:
-            break
-        elif event == CONNECT_BUTTON_LABEL:
-            hostname = values["hostname"]
-            port     = values["port"]
-            username = values["username"]
-            speed    = values["speed"]
+        while True:
+            request = self.read_request(self.client_socket)
 
-            new_entry = [values["speed"], values["hostname"], values["port"]]
+            if not request:
+                break
+            log(f'received \'{request}\' from client...')
 
-            log(f'connecting to {hostname}:{port} set to {speed}...')
-            # window["output"].print(f'connecting to {hostname}:{port}...')
+            if request.startswith('RETR'):
+                log('checkpoint reached!')
+            elif request.startswith('QUIT'):
+                self.send_response(self.client_socket, 'closing down connection')
+                break
+            else:
+                log('command not implemented')
 
-            # table new connection information
-            if new_entry not in tables_values:
-                tables_values.append(new_entry)
-                table = window.find_element("table")
-                table.update(values = tables_values, num_rows = len(tables_values))
+        self.client_socket.close()
 
-        elif event == SEARCH_BUTTON_LABEL:
-            keyword  = values["keyword"]
+    def read_request(self, client_socket : socket) -> str:
+        request = ''
+        while True:
+            data = client_socket.recv(self.buffer).decode('utf-8')
+            request += data
+            if request.endswith(SEND_MESSAGE_END):
+                break
+        return request.strip()
 
-            log(f'searching for keyword \'{keyword}\'...')
-
-        elif event == COMMAND_BUTTON_LABEL:
-            command  = values["command"]
-
-            log(f'command entered: {command}')
-
-            # log actions onto GUI
-            # window["output"].print(f'>> {command}:')
-
-    window.close()
-
-def run_server():
-    log("running server...")
+    def send_response(self, client_socket, message):
+        client_socket.send(f'{message}{READ_MESSAGE_END}'.encode('utf-8'))
 
 def main():
+    server = Server()
 
-    launch_window = Thread(target = run_window)
-    launch_window.start()
-
-    launch_server = Thread(target = run_server)
-    launch_server.start()
-
-    launch_window.join()
-    launch_server.join()
-
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

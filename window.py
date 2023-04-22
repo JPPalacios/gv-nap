@@ -6,10 +6,12 @@ from threading import *
 
 import PySimpleGUI as w
 
-from tools.tools import *
+# from tools.tools import *
+
+from server.server import *
+from client.client import *
 
 # run command if failure: >$: export PYTHONPATH=/path/to/parent:$PYTHONPATH
-
 
 '''
 todo:
@@ -26,9 +28,14 @@ def run_window():
 
     tables_values = []
 
+    client_list = []
+
+    # todo: fix window bug, integrate Client and Server classes into the GUI
+    # todo: RETR command via GUI will retrieve all files in the shared directory space
+
     while True:
         event, values = window.read()
-        if event == w.WIN_CLOSED:
+        if event == CLOSED_WINDOW():
             break
         elif event == CONNECT_BUTTON_LABEL:
             hostname = values["hostname"]
@@ -38,10 +45,13 @@ def run_window():
 
             new_entry = [values["speed"], values["hostname"], values["port"]]
 
-            log(f'connecting to {hostname}:{port} set to {speed}...')
-
             # table new connection information
             if new_entry not in tables_values:
+                log(f'connecting to {hostname}:{port} set to {speed}...')
+
+                # create a new client object with our properties
+                # client_list.append(Client(host = new_entry[1], port = int(new_entry[2])))
+
                 tables_values.append(new_entry)
                 table = window.find_element("table")
                 table.update(values = tables_values, num_rows = len(tables_values))

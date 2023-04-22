@@ -31,6 +31,9 @@ def error(message : str):
 -- window methods
 '''
 
+def CLOSED_WINDOW() -> Window:
+    return w.WIN_CLOSED
+
 def text(label,  size = None, font = None, text_color = None):
     return [w.Text(label, text_color = text_color)]
 

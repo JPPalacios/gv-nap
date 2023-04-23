@@ -1,20 +1,19 @@
-''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''
-
+#!/usr/bin/python
 from os        import *
+from sys       import *
 from time      import *
 from socket    import *
 from threading import *
 
-from tools.tools import *
+path.append("..")
 
-''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''
+from utils.tools import *
 
 class Host:
     def __init__(self, ip = 'localhost', server_port = 3155, client_port = 3156):
         self.ip   = ip
 
-        self.in_connections  = {}
-        self.out_connections = {}
+        self.server_connections = {}
 
         ''' server-side initialization '''
         self.server_port   = server_port
@@ -26,123 +25,101 @@ class Host:
         self.server_thread.start()
 
         ''' client-side initialization '''
-        if client_port:
-            self.client_port   = client_port
-            self.client_socket = socket(AF_INET, SOCK_STREAM)
-            self.client_thread = Thread(target = self.run_client)
-            self.client_thread.start()
+        self.client_port   = client_port
+        self.client_socket = socket(AF_INET, SOCK_STREAM)
+        self.client_thread = Thread(target = self.run_client)
+        self.client_thread.start()
 
-    ''' server-side methods '''
+    # server-side methods
 
     def run_server(self):
         log(f'listening on {self.ip}:{self.server_port}...')
-
         while True:
             connection, address = self.server_socket.accept()
-            self.in_connections[address] = connection
+            self.server_connections[address] = connection
             client_thread = Thread(target = self.handle_client, args = (connection, address))
             client_thread.start()
 
     def handle_client(self, connection, address):
-        log(f'handling client...')
+        while True:
+            message = connection.recv(1024).decode('utf-8')
+            if not message:
+                del self.server_connections[address]
+                break
 
-        with connection:
-            # Handle the connection here
-            while True:
-                data = connection.recv(1024)
-                if not data:
-                    del self.in_connections[(address)]
-                    break
-                message = data.decode('utf-8')
-                log(f'Received message from {address}: {message}')
+            if message.startswith('RETR'):
+                parts = message.split(" ")
+                if len(parts) == 2:
+                    filename = parts[1]
+                    log(f'RETR command in-progress...')
+                    self.send_message(connection, filename + SEND_MESSAGE_END)
 
-                if message.startswith('RETR') and len(self.in_connections) > 0:
-                    parts = message.split(" ")
-                    if len(parts) == 3:
-                        filename = parts[1]
-                        host, ip = parts[2].split(":")
-                        print(f'filename: {filename}')
-                        print(f'host, ip: {host}:{ip}')
-                        self.send_file(host, ip, filename)
+                    self.read_file(connection, filename)
 
-                elif message.startswith('QUIT'):
-                    del self.in_connections[(address)]
-                    break
+            elif message.startswith('QUIT'):
+                log(f'removing {address} from host-server connections...')
+                del self.server_connections[address]
+                break
+        connection.close()
 
-    def send_file(self, host, ip, filename):
-
-        if (host, ip) in self.in_connections:
-            connection = self.in_connection[(host, ip)]
-
-            with open(filename, 'rb') as f:
-                chunk = f.read(1024)
-                while chunk:
-                    connection.sendall(chunk)
-                    chunk = f.read(1024)
-        else:
-            log(f'no connection to {host}:{ip}')
-
-    ''' client-side methods '''
+    # client-side methods
 
     def run_client(self):
-        log('running host\'s client...')
+        log(f'running client on {self.ip}:{self.client_port}...')
+        connection_set = False
 
         while True:
             command = input('> enter a client command: ')
-            # command = "CONNECT 127.0.0.1:8000"
 
-            if command.startswith("CONNECT"):
+            if command.startswith("CONNECT") and not connection_set:
+                connection_set = True
                 parts = command.split(" ")
                 if len(parts) == 2:
                     host, port = parts[1].split(":")
-                    print(f"Host: {host}")
-                    print(f"Port: {port}")
-                self.client_socket = socket(AF_INET, SOCK_STREAM)
-                self.client_socket.connect((host, int(port)))
-                self.out_connections[(host, int(port))] = self.client_socket
-                log(f'connected to {host}:{port} on {self.client_socket}')
+                    self.client_socket.connect((host, int(port)))
+                    log(f'connected to {host}:{port}')
 
-            # todo: this is where we need to interface with the gui-based inputs and not terminal-based inputs
-            elif command.startswith("RETR"):
-                parts = command.split(" ")
-                if len(parts) == 3:
-                    filename = parts[1]
-                    host, ip = parts[2].split(":")
-                    print(f'filename: {filename}')
-                    print(f'host, ip: {host}:{ip}')
-                    self.send_message(host, int(ip), parts[0] + ' '  + filename)
-                    self.receive_file()
+            else:
+                if connection_set:
+                    self.send_message(self.client_socket, command + SEND_MESSAGE_END)
+
+                    if command.startswith("RETR"):
+                        message = self.read_message(self.client_socket)
+                        log(f'received message from server: {message}')
+
+                        self.write_file(self.client_socket, message)
+
+                    elif command.startswith('QUIT'):
+                        self.client_socket.close()
+                        connection_set = False
                 else:
-                    log(f'error: command-syntax')
+                    log(f'error: no connections available!')
 
+    # shared methods
 
-            elif command.startswith('QUIT'):
-                parts = command.split(" ")
-                if len(parts) == 2:
-                    host, ip = parts[1].split(":")
-                self.send_message(host, int(ip), parts[0])
-                del self.out_connections[(host, int(ip))]
+    def send_message(self, connection, message):
+        connection.sendall(message.encode('utf-8'))
 
-    def send_message(self, host, ip, message):
-        if (host, ip) in self.out_connections:
-            connection = self.out_connections[(host, ip)]
-            connection.sendall(message.encode('utf-8'))
-            log(f'message sent to {connection}')
-        else:
-            log(f'error: no connection to {host}:{ip}')
+    def read_message(self, connection):
+        return connection.recv(1024).decode('utf-8')
 
-    def receive_file(self):
-        project_directory = getcwd()
-        host_directory = '/host_A'
-        chdir(host_directory)
-        with open('received_file.txt', 'wb') as f:
+    #! str cannot be interpreted as an integer error
+    def write_file(self, connection, filename):
+        with open('filename.txt', 'wb') as file:
             while True:
-                data = self.client_socket.recv(1024)
+                data = self.read_message(connection)
                 if not data:
-                    # End of file reached
                     break
-                f.write(data)
-        chdir(project_directory)
+                file.write(data)
+
+    #! str cannot be interpreted as an integer error
+    def read_file(self, connection, filename):
+        with open('filename.txt', 'rb') as file:
+            while True:
+                data = file.read(1024)
+                if not data:
+                    break
+                self.send_message(connection, data)
 
 def main():
     host1 = Host('127.0.0.1', 8000, 9000)

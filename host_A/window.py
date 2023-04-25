@@ -8,7 +8,7 @@ import PySimpleGUI as w
 
 # from tools.tools import *
 
-from server.server import *
+from server import *
 from client.client import *
 
 # run command if failure: >$: export PYTHONPATH=/path/to/parent:$PYTHONPATH
@@ -19,6 +19,16 @@ todo:
 - register user uploads shared file description
 - keyword search feature
 - remote host/file name retrieves the file
+'''
+
+'''
+COMMAND SYNTAX:
+
+    - CONNECT <ip:port>
+    - QUER <keyword>
+    - RETR <filename>
+    - QUIT
+
 '''
 
 def run_window():

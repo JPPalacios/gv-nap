@@ -3,7 +3,7 @@
 import os
 import sys
 import time
-from socket    import *
+import socket
 from threading import *
 
 sys.path.append("..")
@@ -11,19 +11,19 @@ sys.path.append("..")
 from utils.tools import *
 
 class Host:
-    def __init__(self, name = 'A', ip = 'localhost', server_port = 3155, client_port = 3156):
+    def __init__(self, name = 'a', ip = 'localhost', server_port = 3155, client_port = 3156):
         self.name = name
         self.ip   = ip
 
         self.server_connections = {}
 
         ''' central-server socket initialization '''
-        self.central_socket = socket(AF_INET, SOCK_STREAM)
+        self.central_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 
         ''' server-side socket initialization '''
         self.server_port   = server_port
-        self.server_socket = socket(AF_INET, SOCK_STREAM)
-        self.server_socket.setsockopt(SOL_SOCKET, SO_REUSEADDR, 1)
+        self.server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        self.server_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         self.server_socket.bind((self.ip, self.server_port))
         self.server_socket.listen(5)
         self.server_thread = Thread(target=self.run_server)
@@ -32,7 +32,7 @@ class Host:
 
         ''' client-side socket initialization '''
         self.client_port   = client_port
-        self.client_socket = socket(AF_INET, SOCK_STREAM)
+        self.client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.client_thread = Thread(target = self.run_client)
         self.client_thread.start()
         # self.client_thread.join()
@@ -48,18 +48,19 @@ class Host:
             connection_thread.start()
 
     def handle_client(self, connection, address):
+        log(f'new host connection: {address}')
         while True:
             message = self.read_message(connection)
             if not message:
                 del self.server_connections[address]
                 break
 
-            elif message.startswith('RETR'):
+            log(f'host message: {message}')
+            if message.startswith('RETR'):
                 parts = message.split(" ")
                 if len(parts) == 2:
                     filename = parts[1]
-                    log(f'RETR command in-progress...')
-                    self.send_message(connection, filename)
+                    log(f'RETR {filename} command in-progress...')
                     self.send_file(connection, filename)
 
             elif message.startswith('QUIT'):
@@ -84,7 +85,10 @@ class Host:
             if debug_command == 0:
                 debug_command = 1
                 command = 'CONNECT 127.0.0.0:3154'
+            # elif debug_command == 1:
+                # command = 'QUER book'
             else:
+                # debug_command = debug_command + 1
                 command = input('> enter a client command: ')
 
             if not server_registration_set:
@@ -95,8 +99,8 @@ class Host:
                         self.central_socket.connect((host, int(port)))
                         central_server_connection = (host, int(port))
                         log(f'connected to central-server at {host}:{port}')
-                        shared_files = 'host_' + self.name + '.txt'
-                        registration_message = f'{self.ip}:{self.client_port} {shared_files}'
+                        shared_files =  self.name + '.txt'
+                        registration_message = f'{self.ip}:{self.server_port} {shared_files}'
                         self.send_message(self.central_socket, registration_message)
                         server_registration_set = True
 
@@ -106,12 +110,12 @@ class Host:
                     log('error: no connection to central server')
             else:
                 if command.startswith("CONNECT") and not host_connection_set:
-                    host_connection_set = True
                     parts = command.split(" ")
                     if len(parts) == 2:
                         host, port = parts[1].split(":")
                         self.client_socket.connect((host, int(port)))
                         log(f'connected to host at {host}:{port}')
+                        host_connection_set = True
                 elif command.startswith("QUER"):
                     parts = command.split(" ")
                     if len(parts) == 2:
@@ -120,12 +124,21 @@ class Host:
 
                     keyword_host = self.read_message(self.central_socket)
 
-                    log(f'{keyword} found in {keyword_host}')
+                    if keyword_host == ' ':
+                        log(f'\'{keyword}\' not found in any host')
+                    else:
+                        log(f'\'{keyword}\' found in {keyword_host}')
+                        new_parts = keyword_host.split(" ")
+                        if len(new_parts) == 2:
+                            host_filename = parts[1]
 
                 elif command.startswith("RETR") and host_connection_set:
-                    message = self.read_message(self.client_socket)
-                    log(f'received message from host: {message}')
-                    self.receive_file(self.client_socket, message)
+                    parts = command.split(" ")
+                    if len(parts) == 2:
+                        filename = parts[1]
+                        log(f'waiting for file {filename}...')
+                        self.send_message(self.client_socket, command)
+                        self.receive_file(self.client_socket, filename)
 
                 elif command.startswith('QUIT'):
                     parts = command.split(" ")
@@ -142,10 +155,6 @@ class Host:
         self.central_socket.close()
 
     def get_command(self):
-        # if debug_command == 0:
-        #     debug_command = 1
-        #     return 'CONNECT 127.0.0.0:3154'
-        # else:
         return input('> enter a client command: ')
 
     # shared methods
@@ -157,23 +166,22 @@ class Host:
         return connection.recv(1024).decode('utf-8')
 
     def receive_file(self, connection, filename):
-        with open(filename, 'wb') as file:
-            while True:
-                data = self.read_message(connection)
-                if not data:
-                    break
-                file.write(data)
+        with open(filename, 'w') as file:
+            data = self.read_message(connection)
+            file.write(data)
+        log(f'file received.')
 
     def send_file(self, connection, filename):
-        with open(filename, 'rb') as file:
+        with open(filename, 'r') as file:
             while True:
                 data = file.read(1024)
                 if not data:
                     break
                 self.send_message(connection, data)
+        log(f'file sent.')
 
 def main():
-    host1 = Host('B', '127.0.0.2', 8001, 9001)
+    host1 = Host('b', '127.0.0.2', 8001, 9001)
 
 if __name__ == '__main__':
     main()

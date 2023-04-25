@@ -37,6 +37,7 @@ class Server:
         registration_set = False
         metadata_copy = ''
         while True:
+            log(f'waiting for host message...')
             message = self.read_message(connection)
             if not message:
                 break
@@ -99,7 +100,7 @@ class Server:
     def keyword_search(self, keyword):
         log(f'server searching for \'{keyword}\'...')
 
-        result = ''
+        result = ' '
 
         search_filelist = []
         search_hosts = []
@@ -111,31 +112,20 @@ class Server:
 
         # walk in our subdirectories and search every filename in our search_filelist
         # for our keyword, if we have a match, set that search_host value to our result
-        # for root, dirs, files in os.walk('.'):
-        #     for file in files:
-        #         if file in search_filelist:
-        #             with open(os.path.join(root, file), 'r') as f:
-        #                 if keyword in f.read():
-        #                     index = search_filelist.index(file)
-        #                     result = search_hosts[index] + ' ' + search_filelist[index]
-        #                     log(f'found keyword in {search_filelist[index]}!')
-        #                     break
-        #     if result:
-                # break
-        log(f'starting os walk')
+        # log(f'starting os walk')
         for root, dirs, files in os.walk('.'):
             for file in files:
                 if file in search_filelist:
                     log(f'searching {os.path.join(root, file)}...')
                     with open(os.path.join(root, file), 'r') as f:
                         contents = f.read()
-                        log(f'{len(contents)} bytes read from {file}.')
+                        # log(f'{len(contents)} bytes read from {file}: {contents}')
                         if keyword in contents:
                             index = search_filelist.index(file)
                             result = search_hosts[index] + ' ' + search_filelist[index]
-                            log(f'found keyword in {search_filelist[index]}!')
+                            log(f'found \'{keyword}\' in {search_filelist[index]}!')
                             break
-        log(f'completed os walk')
+        # log(f'completed os walk')
 
         return result
 
